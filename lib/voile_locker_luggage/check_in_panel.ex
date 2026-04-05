@@ -9,13 +9,18 @@ defmodule VoileLockerLuggage.CheckInPanel do
 
   use Phoenix.LiveComponent
 
+  @audio_path Path.expand(Path.join([__DIR__, "..", "..", "priv", "speech.mp3"]))
+  @external_resource @audio_path
+  @audio_src "data:audio/mpeg;base64,#{Base.encode64(File.read!(@audio_path))}"
+
   @impl true
   def mount(socket) do
     {:ok,
      socket
      |> assign(:locker_offered, true)
      |> assign(:locker_assigned_number, nil)
-     |> assign(:locker_error, nil)}
+     |> assign(:locker_error, nil)
+     |> assign(:audio_src, @audio_src)}
   end
 
   @impl true
@@ -60,10 +65,14 @@ defmodule VoileLockerLuggage.CheckInPanel do
          |> assign(:locker_error, nil)}
 
       {:error, :no_available_lockers} ->
-        {:noreply, assign(socket, :locker_error, "No lockers available at this time.")}
+        {:noreply,
+         assign(socket, :locker_error, "No lockers available at this time.")}
 
       {:error, _} ->
-        {:noreply, assign(socket, :locker_error, "Could not assign locker. Please ask staff.")}
+        {:noreply,
+         assign(socket, :locker_error,
+           "Could not assign locker. Please ask staff."
+         )}
     end
   end
 
@@ -77,6 +86,7 @@ defmodule VoileLockerLuggage.CheckInPanel do
     ~H"""
     <div id={"locker-panel-#{@visitor_log_id}"}>
       <%= if @locker_assigned_number do %>
+        <audio id={"locker-sound-#{@visitor_log_id}"} src={@audio_src} autoplay style="display:none"></audio>
         <div class="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-700">
           <div class="flex items-center gap-3">
             <svg
@@ -109,53 +119,84 @@ defmodule VoileLockerLuggage.CheckInPanel do
       <% end %>
 
       <%= if @locker_offered do %>
-        <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-700">
-          <div class="flex items-center gap-2 mb-3">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="w-5 h-5 text-blue-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"
-              />
-            </svg>
-            <p class="font-semibold text-blue-800 dark:text-blue-200 text-sm">
-              Would you like a locker?
+        <%= if @available_count == 0 do %>
+          <div class="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl border border-yellow-200 dark:border-yellow-700">
+            <div class="flex items-center gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="w-5 h-5 text-yellow-600 shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="1.5"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"
+                />
+              </svg>
+              <div>
+                <p class="font-semibold text-yellow-800 dark:text-yellow-200 text-sm">
+                  All lockers are full
+                </p>
+                <p class="text-xs text-yellow-600 dark:text-yellow-400 mt-0.5">
+                  No lockers are available right now. Please ask staff for assistance.
+                </p>
+              </div>
+            </div>
+          </div>
+        <% else %>
+          <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-700">
+            <div class="flex items-center gap-2 mb-3">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="w-5 h-5 text-blue-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="1.5"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"
+                />
+              </svg>
+              <p class="font-semibold text-blue-800 dark:text-blue-200 text-sm">
+                Would you like a locker?
+              </p>
+            </div>
+            <p class="text-xs text-blue-600 dark:text-blue-400 mb-3">
+              <%= if @available_count == 1 do %>
+                1 locker is available
+              <% else %>
+                #{@available_count} lockers are available
+              <% end %>
             </p>
+            <%= if @locker_error do %>
+              <p class="text-xs text-red-600 mb-2">{@locker_error}</p>
+            <% end %>
+            <div class="flex gap-2">
+              <button
+                type="button"
+                phx-click="request_locker"
+                phx-target={@myself}
+                class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                Yes, assign me one
+              </button>
+              <button
+                type="button"
+                phx-click="decline_locker"
+                phx-target={@myself}
+                class="flex-1 py-2 border border-gray-300 text-gray-700 dark:text-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                No thanks
+              </button>
+            </div>
           </div>
-          <p class="text-xs text-blue-600 dark:text-blue-400 mb-3">
-            {if @available_count == 1,
-              do: "1 locker is available",
-              else: "#{@available_count} lockers are available"}
-          </p>
-          <%= if @locker_error do %>
-            <p class="text-xs text-red-600 mb-2">{@locker_error}</p>
-          <% end %>
-          <div class="flex gap-2">
-            <button
-              type="button"
-              phx-click="request_locker"
-              phx-target={@myself}
-              class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-            >
-              Yes, assign me one
-            </button>
-            <button
-              type="button"
-              phx-click="decline_locker"
-              phx-target={@myself}
-              class="flex-1 py-2 border border-gray-300 text-gray-700 dark:text-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              No thanks
-            </button>
-          </div>
-        </div>
+        <% end %>
       <% end %>
     </div>
     """

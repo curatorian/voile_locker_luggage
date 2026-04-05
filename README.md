@@ -23,7 +23,7 @@ Provides per-node locker assignment during visitor check-in, staff management UI
 | Elixir           | `~> 1.18`  |
 | OTP              | `~> 27`    |
 | Phoenix LiveView | `~> 1.1`   |
-| Voile            | `>= 1.0.0` |
+| Voile            | `>= 0.1.2` |
 | PostgreSQL       | `>= 14`    |
 
 ---
@@ -34,7 +34,7 @@ Provides per-node locker assignment during visitor check-in, staff management UI
 
 ```elixir
 # mix.exs
-{:voile_locker_luggage, "~> 1.0"}
+{:voile_locker_luggage, "~> 0.1.0"}
 ```
 
 ### Option B — From GitHub (recommended for now)
@@ -45,7 +45,7 @@ You can pin to a specific release tag:
 # mix.exs
 {:voile_locker_luggage,
   github: "curatorian/voile_locker_luggage",
-  tag: "v1.0.0",
+  tag: "v0.1.0",
   sparse: "."
 }
 ```

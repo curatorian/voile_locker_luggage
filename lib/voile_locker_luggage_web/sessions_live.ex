@@ -67,6 +67,10 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
     assign(socket, :sessions, Lockers.list_active_sessions(node_id))
   end
 
+  defp load_sessions(socket, node_id, :history, nil) do
+    assign(socket, :sessions, Lockers.list_sessions(node_id))
+  end
+
   defp load_sessions(socket, node_id, :history, date) do
     assign(socket, :sessions, Lockers.list_sessions(node_id, date: date))
   end
@@ -86,13 +90,28 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
   def handle_event("set_filter", %{"filter" => filter}, socket) do
     filter_atom = String.to_existing_atom(filter)
 
+    # When switching to history, reset to today so sessions show immediately.
+    # When switching to active, date is irrelevant.
+    date =
+      case filter_atom do
+        :history -> Date.utc_today()
+        _ -> socket.assigns.selected_date
+      end
+
     {:noreply,
      socket
      |> assign(:filter, filter_atom)
-     |> load_sessions(socket.assigns.selected_node_id, filter_atom, socket.assigns.selected_date)}
+     |> assign(:selected_date, date)
+     |> load_sessions(socket.assigns.selected_node_id, filter_atom, date)}
   end
 
-  @impl true
+  def handle_event("set_date", %{"date" => ""}, socket) do
+    {:noreply,
+     socket
+     |> assign(:selected_date, nil)
+     |> load_sessions(socket.assigns.selected_node_id, socket.assigns.filter, nil)}
+  end
+
   def handle_event("set_date", %{"date" => date_str}, socket) do
     case Date.from_iso8601(date_str) do
       {:ok, date} ->
@@ -186,13 +205,14 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
         </div>
 
         <%= if @filter == :history do %>
-          <input
-            type="date"
-            value={Date.to_iso8601(@selected_date)}
-            phx-change="set_date"
-            name="date"
-            class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white text-gray-900 dark:bg-gray-900 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+          <form phx-change="set_date" id="session-date-filter">
+            <input
+              type="date"
+              value={if @selected_date, do: Date.to_iso8601(@selected_date), else: ""}
+              name="date"
+              class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white text-gray-900 dark:bg-gray-900 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </form>
         <% end %>
       </div>
 

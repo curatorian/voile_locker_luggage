@@ -57,7 +57,6 @@ defmodule VoileLockerLuggage.MixProject do
       {:postgrex, "~> 0.22"},
       {:phoenix_live_view, "~> 1.1"},
       {:phoenix_html, "~> 4.3"},
-      # Dev/docs only
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end
