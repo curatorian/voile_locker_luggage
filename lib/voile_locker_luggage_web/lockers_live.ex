@@ -53,13 +53,17 @@ defmodule VoileLockerLuggage.Web.LockersLive do
 
   defp maybe_filter_nodes(nodes, _user_node_id, true), do: nodes
   defp maybe_filter_nodes(_nodes, nil, false), do: []
-  defp maybe_filter_nodes(nodes, user_node_id, false), do: Enum.filter(nodes, &(&1.id == user_node_id))
+
+  defp maybe_filter_nodes(nodes, user_node_id, false),
+    do: Enum.filter(nodes, &(&1.id == user_node_id))
 
   defp enforce_node_scope(node_id, socket) do
     if socket.assigns.is_super_admin do
       node_id
     else
-      if node_id == socket.assigns.current_user_node_id, do: node_id, else: socket.assigns.current_user_node_id
+      if node_id == socket.assigns.current_user_node_id,
+        do: node_id,
+        else: socket.assigns.current_user_node_id
     end
   end
 
@@ -296,7 +300,8 @@ defmodule VoileLockerLuggage.Web.LockersLive do
                 "px-4 py-2 text-sm font-medium rounded-lg border transition-colors",
                 if(@selected_node_id == node.id,
                   do: "bg-indigo-600 text-white border-indigo-600",
-                  else: "bg-white text-gray-700 border-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800"
+                  else:
+                    "bg-white text-gray-700 border-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800"
                 )
               ]}
             >
@@ -440,7 +445,7 @@ defmodule VoileLockerLuggage.Web.LockersLive do
 
       <%!-- Locker grid --%>
       <%= if @selected_node_id && @lockers != [] do %>
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           <%= for locker <- @lockers do %>
             <% session = Map.get(@sessions_by_locker, locker.id) %>
             <div class={[
@@ -451,9 +456,15 @@ defmodule VoileLockerLuggage.Web.LockersLive do
               <div class="text-xs mt-0.5 capitalize">{locker.status}</div>
 
               <%= if session do %>
-                <div class="text-xs text-gray-600 mt-1 truncate" title={session.visitor_identifier}>
-                  {session.visitor_identifier}
-                </div>
+                <% if session.visitor_name && session.visitor_name != "" do %>
+                  <div class="text-sm font-medium mt-1 truncate" title={session.visitor_name}>
+                    {session.visitor_name}
+                  </div>
+                <% else %>
+                  <div class="text-xs text-gray-600 mt-1 truncate" title={session.visitor_identifier}>
+                    {session.visitor_identifier}
+                  </div>
+                <% end %>
               <% end %>
 
               <div class="mt-2 flex flex-col gap-1">
@@ -569,10 +580,12 @@ defmodule VoileLockerLuggage.Web.LockersLive do
     do: "border-yellow-300 bg-yellow-50 text-yellow-900"
 
   defp status_card_class("reserved"),
-    do: "border-blue-300 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/20 dark:text-blue-100 text-blue-900"
+    do:
+      "border-blue-300 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/20 dark:text-blue-100 text-blue-900"
 
   defp status_card_class(_),
-    do: "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 text-gray-700"
+    do:
+      "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 text-gray-700"
 
   defp staff_email(socket) do
     case socket.assigns[:current_scope] do
