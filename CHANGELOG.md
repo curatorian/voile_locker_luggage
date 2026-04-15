@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.2 (2026-06-15)
+
+- Fix layout on lockers management page
+- bump version from 0.1.1 to 0.1.2
+
 ## v0.1.0 (2026-04-04)
 
 Initial release.
