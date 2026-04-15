@@ -456,7 +456,7 @@ defmodule VoileLockerLuggage.Web.LockersLive do
               <div class="text-xs mt-0.5 capitalize">{locker.status}</div>
 
               <%= if session do %>
-                <% if session.visitor_name && session.visitor_name != "" do %>
+                <%= if session.visitor_name && session.visitor_name != "" do %>
                   <div class="text-sm font-medium mt-1 truncate" title={session.visitor_name}>
                     {session.visitor_name}
                   </div>

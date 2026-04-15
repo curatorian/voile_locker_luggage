@@ -1,6 +1,10 @@
 # Changelog
 
-## v0.1.2 (2026-06-15)
+## v0.1.3 (2026-04-15)
+
+- Fix if template
+
+## v0.1.2 (2026-04-15)
 
 - Fix layout on lockers management page
 - bump version from 0.1.1 to 0.1.2
