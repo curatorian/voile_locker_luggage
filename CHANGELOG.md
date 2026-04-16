@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.6 (2026-04-17)
+
+- Fixd version number
+
 ## v0.1.5 (2026-04-17)
 
 - Add pagination to session history page for better performance with large datasets.

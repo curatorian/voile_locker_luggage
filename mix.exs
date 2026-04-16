@@ -1,7 +1,7 @@
 defmodule VoileLockerLuggage.MixProject do
   use Mix.Project
 
-  @version "0.1.5s"
+  @version "0.1.6"
   @source_url "https://github.com/curatorian/voile_locker_luggage"
 
   def project do
