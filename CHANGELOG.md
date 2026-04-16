@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.5 (2026-04-17)
+
+- Add pagination to session history page for better performance with large datasets.
+
 ## v0.1.4 (2026-04-16)
 
 - Add refresh button to locker management and session history pages to reload data without a full page refresh
