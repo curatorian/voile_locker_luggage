@@ -12,6 +12,8 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
   alias Voile.Schema.System
   alias VoileLockerLuggageWeb
 
+  @page_size 20
+
   @impl true
   def mount(params, session, socket) do
     socket = VoileLockerLuggageWeb.mount_auth(socket, session)
@@ -46,6 +48,9 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
      |> assign(:selected_node_id, node_id)
      |> assign(:filter, :active)
      |> assign(:selected_date, today)
+     |> assign(:page, 1)
+     |> assign(:per_page, @page_size)
+     |> assign(:has_next_page, false)
      |> load_sessions(node_id, :active, today)}
   end
 
@@ -61,18 +66,51 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
     end
   end
 
-  defp load_sessions(socket, nil, _filter, _date), do: assign(socket, :sessions, [])
+  defp load_sessions(socket, nil, _filter, _date) do
+    socket
+    |> assign(:sessions, [])
+    |> assign(:has_next_page, false)
+    |> assign(:page, socket.assigns[:page] || 1)
+    |> assign(:per_page, socket.assigns[:per_page] || @page_size)
+  end
 
   defp load_sessions(socket, node_id, :active, _date) do
-    assign(socket, :sessions, Lockers.list_active_sessions(node_id))
+    page = socket.assigns[:page] || 1
+    per_page = socket.assigns[:per_page] || @page_size
+
+    {sessions, has_next_page} = Lockers.list_active_sessions(node_id, page, per_page)
+
+    socket
+    |> assign(:sessions, sessions)
+    |> assign(:has_next_page, has_next_page)
+    |> assign(:page, page)
+    |> assign(:per_page, per_page)
   end
 
   defp load_sessions(socket, node_id, :history, nil) do
-    assign(socket, :sessions, Lockers.list_sessions(node_id))
+    page = socket.assigns[:page] || 1
+    per_page = socket.assigns[:per_page] || @page_size
+
+    {sessions, has_next_page} = Lockers.list_sessions(node_id, nil, page, per_page)
+
+    socket
+    |> assign(:sessions, sessions)
+    |> assign(:has_next_page, has_next_page)
+    |> assign(:page, page)
+    |> assign(:per_page, per_page)
   end
 
   defp load_sessions(socket, node_id, :history, date) do
-    assign(socket, :sessions, Lockers.list_sessions(node_id, date: date))
+    page = socket.assigns[:page] || 1
+    per_page = socket.assigns[:per_page] || @page_size
+
+    {sessions, has_next_page} = Lockers.list_sessions(node_id, date, page, per_page)
+
+    socket
+    |> assign(:sessions, sessions)
+    |> assign(:has_next_page, has_next_page)
+    |> assign(:page, page)
+    |> assign(:per_page, per_page)
   end
 
   @impl true
@@ -83,6 +121,7 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
     {:noreply,
      socket
      |> assign(:selected_node_id, node_id)
+     |> assign(:page, 1)
      |> load_sessions(node_id, socket.assigns.filter, socket.assigns.selected_date)}
   end
 
@@ -102,6 +141,7 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
      socket
      |> assign(:filter, filter_atom)
      |> assign(:selected_date, date)
+     |> assign(:page, 1)
      |> load_sessions(socket.assigns.selected_node_id, filter_atom, date)}
   end
 
@@ -109,6 +149,7 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
     {:noreply,
      socket
      |> assign(:selected_date, nil)
+     |> assign(:page, 1)
      |> load_sessions(socket.assigns.selected_node_id, socket.assigns.filter, nil)}
   end
 
@@ -129,6 +170,23 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
   def handle_event("refresh", _params, socket) do
     {:noreply,
      socket
+     |> load_sessions(socket.assigns.selected_node_id, socket.assigns.filter, socket.assigns.selected_date)}
+  end
+
+  @impl true
+  def handle_event("change_page", %{"direction" => direction}, socket) do
+    current_page = socket.assigns[:page] || 1
+
+    page =
+      case direction do
+        "next" -> current_page + 1
+        "prev" -> max(current_page - 1, 1)
+        _ -> current_page
+      end
+
+    {:noreply,
+     socket
+     |> assign(:page, page)
      |> load_sessions(socket.assigns.selected_node_id, socket.assigns.filter, socket.assigns.selected_date)}
   end
 
@@ -229,6 +287,30 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
           </form>
         <% end %>
       </div>
+
+      <%= if @page > 1 or @has_next_page do %>
+        <div class="flex items-center justify-between gap-4 mb-6">
+          <div class="text-sm text-gray-600 dark:text-gray-400">Page {@page}</div>
+          <div class="flex gap-2">
+            <button
+              phx-click="change_page"
+              phx-value-direction="prev"
+              disabled={@page <= 1}
+              class="px-3 py-1 text-sm font-medium rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
+            >
+              Previous
+            </button>
+            <button
+              phx-click="change_page"
+              phx-value-direction="next"
+              disabled={!@has_next_page}
+              class="px-3 py-1 text-sm font-medium rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      <% end %>
 
       <%!-- Sessions table --%>
       <%= if @sessions == [] do %>

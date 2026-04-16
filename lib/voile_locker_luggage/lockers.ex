@@ -155,6 +155,23 @@ defmodule VoileLockerLuggage.Lockers do
     |> Repo.all()
   end
 
+  @doc "List active sessions for a node with pagination."
+  def list_active_sessions(node_id, page, per_page) do
+    query =
+      LockerSession
+      |> where([s], s.node_id == ^node_id and is_nil(s.released_at))
+      |> order_by([s], s.assigned_at)
+      |> preload(:locker)
+      |> limit(^ (per_page + 1))
+      |> offset(^((page - 1) * per_page))
+
+    sessions = Repo.all(query)
+    has_next_page = length(sessions) > per_page
+    sessions = Enum.take(sessions, per_page)
+
+    {sessions, has_next_page}
+  end
+
   @doc "List session history for a node with optional date filter."
   def list_sessions(node_id, opts \\ []) do
     query =
@@ -177,6 +194,39 @@ defmodule VoileLockerLuggage.Lockers do
       end
 
     Repo.all(query)
+  end
+
+  @doc "List session history for a node with optional date filter and pagination."
+  def list_sessions(node_id, date, page, per_page) do
+    query =
+      LockerSession
+      |> where([s], s.node_id == ^node_id)
+      |> order_by([s], desc: s.assigned_at)
+      |> preload(:locker)
+
+    query =
+      case date do
+        nil ->
+          query
+
+        date ->
+          start_dt = DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
+          end_dt = DateTime.new!(Date.add(date, 1), ~T[00:00:00], "Etc/UTC")
+
+          query
+          |> where([s], s.assigned_at >= ^start_dt and s.assigned_at < ^end_dt)
+      end
+
+    query =
+      query
+      |> limit(^ (per_page + 1))
+      |> offset(^((page - 1) * per_page))
+
+    sessions = Repo.all(query)
+    has_next_page = length(sessions) > per_page
+    sessions = Enum.take(sessions, per_page)
+
+    {sessions, has_next_page}
   end
 
   @doc "Get the active session for a visitor (if any) in a node."
