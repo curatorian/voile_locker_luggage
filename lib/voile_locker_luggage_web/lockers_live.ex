@@ -94,6 +94,11 @@ defmodule VoileLockerLuggage.Web.LockersLive do
   end
 
   @impl true
+  def handle_event("refresh", _params, socket) do
+    {:noreply, load_lockers(socket, socket.assigns.selected_node_id)}
+  end
+
+  @impl true
   def handle_event("new_locker", _params, socket) do
     changeset = Locker.changeset(%Locker{}, %{})
 
@@ -279,6 +284,14 @@ defmodule VoileLockerLuggage.Web.LockersLive do
         <div class="flex-1">
           <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Manage Lockers</h1>
         </div>
+        <%= if @selected_node_id do %>
+          <button
+            phx-click="refresh"
+            class="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+          >
+            Refresh
+          </button>
+        <% end %>
         <%= if @selected_node_id && @is_super_admin do %>
           <button
             phx-click="new_locker"

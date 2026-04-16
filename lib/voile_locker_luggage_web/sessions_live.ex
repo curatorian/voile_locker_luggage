@@ -126,6 +126,13 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
   end
 
   @impl true
+  def handle_event("refresh", _params, socket) do
+    {:noreply,
+     socket
+     |> load_sessions(socket.assigns.selected_node_id, socket.assigns.filter, socket.assigns.selected_date)}
+  end
+
+  @impl true
   def handle_event("release_session", %{"id" => session_id}, socket) do
     case Lockers.release_locker(session_id,
            release_method: "staff_manual",
@@ -203,6 +210,13 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
             </button>
           <% end %>
         </div>
+
+        <button
+          phx-click="refresh"
+          class="px-4 py-1.5 text-sm font-medium rounded-md border border-gray-200 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+        >
+          Refresh
+        </button>
 
         <%= if @filter == :history do %>
           <form phx-change="set_date" id="session-date-filter">

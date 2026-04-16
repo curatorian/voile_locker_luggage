@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.4 (2026-04-16)
+
+- Add refresh button to locker management and session history pages to reload data without a full page refresh
+
 ## v0.1.3 (2026-04-15)
 
 - Fix if template
