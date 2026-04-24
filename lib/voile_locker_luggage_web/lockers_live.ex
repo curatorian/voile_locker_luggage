@@ -6,7 +6,7 @@ defmodule VoileLockerLuggage.Web.LockersLive do
 
   use Phoenix.LiveView
 
-  @compile {:no_warn_undefined, [Voile.Schema.System, VoileWeb.Auth.Authorization]}
+  @compile {:no_warn_undefined, [Voile.Schema.System, Voile.Schema.Master, VoileWeb.Auth.Authorization]}
 
   alias VoileLockerLuggage.{Lockers, Locker}
   alias Voile.Schema.System
@@ -42,6 +42,8 @@ defmodule VoileLockerLuggage.Web.LockersLive do
      |> assign(:page_title, "Manage Lockers")
      |> assign(:nodes, enabled_nodes)
      |> assign(:selected_node_id, node_id)
+     |> assign(:locations, [])
+     |> assign(:selected_location_id, nil)
      |> assign(:show_form, false)
      |> assign(:editing_locker, nil)
      |> assign(:form, nil)
@@ -67,17 +69,50 @@ defmodule VoileLockerLuggage.Web.LockersLive do
     end
   end
 
-  defp load_lockers(socket, nil), do: assign(socket, :lockers, [])
+  defp load_lockers(socket, nil) do
+    socket
+    |> assign(:lockers, [])
+    |> assign(:sessions_by_locker, %{})
+    |> assign(:counts, %{})
+    |> assign(:locations, [])
+  end
 
   defp load_lockers(socket, node_id) do
-    lockers = Lockers.list_lockers(node_id)
-    active_sessions = Lockers.list_active_sessions(node_id)
+    location_id = socket.assigns[:selected_location_id]
+    locations = load_locations(node_id)
+
+    {lockers, active_sessions, counts} =
+      if location_id do
+        {
+          Lockers.list_lockers_for_location(location_id),
+          Lockers.list_active_sessions_for_location(location_id),
+          Lockers.count_lockers_by_status_for_location(location_id)
+        }
+      else
+        {
+          Lockers.list_lockers(node_id),
+          Lockers.list_active_sessions(node_id),
+          Lockers.count_lockers_by_status(node_id)
+        }
+      end
+
     sessions_by_locker = Map.new(active_sessions, &{&1.locker_id, &1})
 
     socket
     |> assign(:lockers, lockers)
     |> assign(:sessions_by_locker, sessions_by_locker)
-    |> assign(:counts, Lockers.count_lockers_by_status(node_id))
+    |> assign(:counts, counts)
+    |> assign(:locations, locations)
+  end
+
+  defp load_locations(nil), do: []
+
+  defp load_locations(node_id) do
+    try do
+      Voile.Schema.Master.list_locations(node_id: node_id, is_active: true)
+    rescue
+      _ -> []
+    end
   end
 
   @impl true
@@ -88,9 +123,28 @@ defmodule VoileLockerLuggage.Web.LockersLive do
     {:noreply,
      socket
      |> assign(:selected_node_id, node_id)
+     |> assign(:selected_location_id, nil)
      |> assign(:show_form, false)
      |> assign(:editing_locker, nil)
      |> load_lockers(node_id)}
+  end
+
+  @impl true
+  def handle_event("select_location", %{"location_id" => "all"}, socket) do
+    {:noreply,
+     socket
+     |> assign(:selected_location_id, nil)
+     |> load_lockers(socket.assigns.selected_node_id)}
+  end
+
+  @impl true
+  def handle_event("select_location", %{"location_id" => location_id_str}, socket) do
+    location_id = String.to_integer(location_id_str)
+
+    {:noreply,
+     socket
+     |> assign(:selected_location_id, location_id)
+     |> load_lockers(socket.assigns.selected_node_id)}
   end
 
   @impl true
@@ -138,6 +192,13 @@ defmodule VoileLockerLuggage.Web.LockersLive do
       params
       |> Map.put("node_id", node_id)
       |> Map.put("status", params["status"] || "available")
+      |> then(fn a ->
+        case a["location_id"] do
+          "" -> Map.put(a, "location_id", nil)
+          nil -> Map.put(a, "location_id", nil)
+          _ -> a
+        end
+      end)
 
     result =
       case socket.assigns.editing_locker do
@@ -304,7 +365,7 @@ defmodule VoileLockerLuggage.Web.LockersLive do
 
       <%!-- Node selector --%>
       <%= if @nodes != [] do %>
-        <div class="flex flex-wrap gap-2 mb-6">
+        <div class="flex flex-wrap gap-2 mb-3">
           <%= for node <- @nodes do %>
             <button
               phx-click="select_node"
@@ -319,6 +380,44 @@ defmodule VoileLockerLuggage.Web.LockersLive do
               ]}
             >
               {node.name}
+            </button>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%!-- Location sub-tabs (visible when a node is selected and has locations) --%>
+      <%= if @selected_node_id && @locations != [] do %>
+        <div class="flex flex-wrap gap-1.5 mb-6 pl-3 border-l-4 border-indigo-200 dark:border-indigo-700">
+          <button
+            phx-click="select_location"
+            phx-value-location_id="all"
+            class={[
+              "px-3 py-1 text-xs font-medium rounded-md border transition-colors",
+              if(is_nil(@selected_location_id),
+                do:
+                  "bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-600",
+                else:
+                  "bg-white text-gray-500 border-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-800"
+              )
+            ]}
+          >
+            All Locations
+          </button>
+          <%= for location <- @locations do %>
+            <button
+              phx-click="select_location"
+              phx-value-location_id={location.id}
+              class={[
+                "px-3 py-1 text-xs font-medium rounded-md border transition-colors",
+                if(@selected_location_id == location.id,
+                  do:
+                    "bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-600",
+                  else:
+                    "bg-white text-gray-500 border-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-800"
+                )
+              ]}
+            >
+              {location.location_name}
             </button>
           <% end %>
         </div>
@@ -360,6 +459,25 @@ defmodule VoileLockerLuggage.Web.LockersLive do
                 value={Ecto.Changeset.get_field(@form.source, :locker_number)}
                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 dark:bg-gray-900 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Location
+              </label>
+              <select
+                name="locker[location_id]"
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 dark:bg-gray-900 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">— No location —</option>
+                <%= for location <- @locations do %>
+                  <option
+                    value={location.id}
+                    selected={Ecto.Changeset.get_field(@form.source, :location_id) == location.id}
+                  >
+                    {location.location_name}
+                  </option>
+                <% end %>
+              </select>
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

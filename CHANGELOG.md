@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.2.0 (2026-04-24)
+
+- Add per-location locker support scoped under `mst_locations`
+- New `LockerLocationConfig` schema for per-location enable/disable and locker count settings
+- Add `location_id` field to `Locker` schema (nullable, backwards compatible)
+- New migration adds `location_id` column to lockers and creates `plugin_locker_luggage_location_configs` table
+- Node → Location hierarchical tab navigation in Manage Lockers and Sessions pages
+- Location breakdown (available/occupied counts) shown per-location on the Index dashboard
+- NodeConfigLive: expand a node to reveal per-location configuration forms; saving triggers `sync_lockers_for_location`
+- `CheckInPanel` now scopes locker offer and assignment to the visitor's check-in location when `location_id` is provided
+- Hook payload updated to forward `location_id` from the host app's check-in LiveView
+
 ## v0.1.6 (2026-04-17)
 
 - Fixd version number

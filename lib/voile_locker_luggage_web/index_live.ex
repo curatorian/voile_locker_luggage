@@ -4,7 +4,7 @@ defmodule VoileLockerLuggage.Web.IndexLive do
   use Phoenix.LiveView
   import Phoenix.Component
 
-  @compile {:no_warn_undefined, [Voile.Schema.System, VoileWeb.Auth.Authorization]}
+  @compile {:no_warn_undefined, [Voile.Schema.System, Voile.Schema.Master, VoileWeb.Auth.Authorization]}
 
   alias VoileLockerLuggage.Lockers
   alias Voile.Schema.System
@@ -30,12 +30,36 @@ defmodule VoileLockerLuggage.Web.IndexLive do
         active_sessions =
           if enabled, do: Lockers.list_active_sessions(node.id) |> length(), else: 0
 
+        location_summaries =
+          if enabled do
+            try do
+              Voile.Schema.Master.list_locations(node_id: node.id, is_active: true)
+              |> Enum.map(fn location ->
+                loc_counts = Lockers.count_lockers_by_status_for_location(location.id)
+
+                %{
+                  location_id: location.id,
+                  location_name: location.location_name,
+                  available: Map.get(loc_counts, "available", 0),
+                  occupied: Map.get(loc_counts, "occupied", 0),
+                  maintenance: Map.get(loc_counts, "maintenance", 0)
+                }
+              end)
+              |> Enum.filter(fn s -> s.available + s.occupied + s.maintenance > 0 end)
+            rescue
+              _ -> []
+            end
+          else
+            []
+          end
+
         %{
           node: node,
           config: config,
           enabled: enabled || false,
           counts: counts,
-          active_sessions: active_sessions
+          active_sessions: active_sessions,
+          location_summaries: location_summaries
         }
       end)
 
@@ -131,6 +155,30 @@ defmodule VoileLockerLuggage.Web.IndexLive do
                   Sessions
                 </a>
               </div>
+
+              <%!-- Per-location breakdown --%>
+              <%= if summary.location_summaries != [] do %>
+                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 space-y-1.5">
+                  <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">
+                    By Location
+                  </p>
+                  <%= for loc <- summary.location_summaries do %>
+                    <div class="flex items-center justify-between text-xs">
+                      <span class="text-gray-600 dark:text-gray-400 truncate flex-1 mr-2">
+                        {loc.location_name}
+                      </span>
+                      <div class="flex gap-2 shrink-0">
+                        <span class="text-green-600 dark:text-green-400 font-medium">
+                          {loc.available} avail
+                        </span>
+                        <span class="text-red-500 dark:text-red-400 font-medium">
+                          {loc.occupied} occ
+                        </span>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
             <% else %>
               <p class="text-sm text-gray-400 text-center py-4">
                 Locker system not enabled for this node

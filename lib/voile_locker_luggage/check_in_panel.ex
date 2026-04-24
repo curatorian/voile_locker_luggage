@@ -28,6 +28,7 @@ defmodule VoileLockerLuggage.CheckInPanel do
     {:ok,
      socket
      |> assign(:node_id, assigns.node_id)
+     |> assign(:location_id, Map.get(assigns, :location_id))
      |> assign(:visitor_log_id, assigns.visitor_log_id)
      |> assign(:visitor_name, assigns.visitor_name)
      |> assign(:visitor_identifier, assigns.visitor_identifier)
@@ -36,7 +37,17 @@ defmodule VoileLockerLuggage.CheckInPanel do
 
   @impl true
   def handle_event("request_locker", _params, socket) do
-    %{node_id: node_id, visitor_identifier: visitor_identifier, visitor_name: visitor_name, visitor_log_id: log_id} = socket.assigns
+    %{
+      node_id: node_id,
+      location_id: location_id,
+      visitor_identifier: visitor_identifier,
+      visitor_name: visitor_name,
+      visitor_log_id: log_id
+    } = socket.assigns
+
+    opts =
+      [visitor_log_id: log_id]
+      |> then(fn o -> if location_id, do: Keyword.put(o, :location_id, location_id), else: o end)
 
     result =
       try do
@@ -44,7 +55,7 @@ defmodule VoileLockerLuggage.CheckInPanel do
           node_id,
           visitor_identifier,
           visitor_name,
-          visitor_log_id: log_id
+          opts
         )
       rescue
         _ -> {:error, :unavailable}

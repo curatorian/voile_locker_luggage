@@ -12,6 +12,7 @@ defmodule VoileLockerLuggage.Locker do
 
   schema "plugin_locker_luggage_lockers" do
     field(:node_id, :integer)
+    field(:location_id, :integer)
     field(:locker_number, :string)
     field(:status, :string, default: "available")
     field(:notes, :string)
@@ -24,10 +25,15 @@ defmodule VoileLockerLuggage.Locker do
   @doc false
   def changeset(locker, attrs) do
     locker
-    |> cast(attrs, [:node_id, :locker_number, :status, :notes])
+    |> cast(attrs, [:node_id, :location_id, :locker_number, :status, :notes])
     |> validate_required([:node_id, :locker_number, :status])
     |> validate_inclusion(:status, @statuses)
-    |> unique_constraint([:node_id, :locker_number])
+    |> unique_constraint([:node_id, :locker_number],
+      name: :plugin_locker_luggage_lockers_node_number_idx
+    )
+    |> unique_constraint([:location_id, :locker_number],
+      name: :plugin_locker_luggage_lockers_location_number_idx
+    )
   end
 
   def statuses, do: @statuses

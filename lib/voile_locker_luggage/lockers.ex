@@ -7,7 +7,7 @@ defmodule VoileLockerLuggage.Lockers do
 
   import Ecto.Query
   alias Voile.Repo
-  alias VoileLockerLuggage.{Locker, LockerSession, LockerNodeConfig}
+  alias VoileLockerLuggage.{Locker, LockerSession, LockerNodeConfig, LockerLocationConfig}
 
   # ── Node Config ──────────────────────────────────────────────────────────────
 
@@ -40,6 +40,45 @@ defmodule VoileLockerLuggage.Lockers do
       existing ->
         existing
         |> LockerNodeConfig.changeset(attrs)
+        |> Repo.update()
+    end
+  end
+
+  # ── Location Config ──────────────────────────────────────────────────────────
+
+  @doc "List all location configs for a node."
+  def list_location_configs(node_id) do
+    LockerLocationConfig
+    |> where([c], c.node_id == ^node_id)
+    |> Repo.all()
+  end
+
+  @doc "Get location config for a specific location, returns nil if not found."
+  def get_location_config(location_id) do
+    Repo.get_by(LockerLocationConfig, location_id: location_id)
+  end
+
+  @doc "Check if a location has locker system enabled."
+  def location_enabled?(location_id) do
+    case get_location_config(location_id) do
+      %LockerLocationConfig{enabled: true} -> true
+      _ -> false
+    end
+  end
+
+  @doc "Create or update location config."
+  def upsert_location_config(location_id, node_id, attrs) do
+    case get_location_config(location_id) do
+      nil ->
+        %LockerLocationConfig{}
+        |> LockerLocationConfig.changeset(
+          Map.merge(attrs, %{location_id: location_id, node_id: node_id})
+        )
+        |> Repo.insert()
+
+      existing ->
+        existing
+        |> LockerLocationConfig.changeset(attrs)
         |> Repo.update()
     end
   end
@@ -144,6 +183,68 @@ defmodule VoileLockerLuggage.Lockers do
     |> Map.new()
   end
 
+  @doc "List all lockers for a location."
+  def list_lockers_for_location(location_id) do
+    Locker
+    |> where([l], l.location_id == ^location_id)
+    |> order_by([l], l.locker_number)
+    |> Repo.all()
+  end
+
+  @doc "Get available lockers for a location."
+  def list_available_lockers_for_location(location_id) do
+    Locker
+    |> where([l], l.location_id == ^location_id and l.status == "available")
+    |> order_by([l], l.locker_number)
+    |> Repo.all()
+  end
+
+  @doc "Count lockers by status for a location."
+  def count_lockers_by_status_for_location(location_id) do
+    Locker
+    |> where([l], l.location_id == ^location_id)
+    |> group_by([l], l.status)
+    |> select([l], {l.status, count(l.id)})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc """
+  Bulk-create lockers for a specific location.
+  Locker numbers are padded integers: \"001\", \"002\", ...
+  Only creates lockers that don't already exist for that location.
+  """
+  def sync_lockers_for_location(location_id, node_id, total_count) do
+    existing_numbers =
+      Locker
+      |> where([l], l.location_id == ^location_id)
+      |> select([l], l.locker_number)
+      |> Repo.all()
+      |> MapSet.new()
+
+    desired_numbers =
+      1..total_count
+      |> Enum.map(&String.pad_leading(Integer.to_string(&1), 3, "0"))
+      |> MapSet.new()
+
+    to_create = MapSet.difference(desired_numbers, existing_numbers)
+
+    Repo.transaction(fn ->
+      Enum.each(to_create, fn number ->
+        %Locker{}
+        |> Locker.changeset(%{
+          node_id: node_id,
+          location_id: location_id,
+          locker_number: number,
+          status: "available"
+        })
+        |> Repo.insert!()
+      end)
+
+      MapSet.size(to_create)
+    end)
+  end
+
   # ── Sessions ─────────────────────────────────────────────────────────────────
 
   @doc "List all active sessions for a node."
@@ -229,6 +330,65 @@ defmodule VoileLockerLuggage.Lockers do
     {sessions, has_next_page}
   end
 
+  @doc "List all active sessions for a location (non-paginated)."
+  def list_active_sessions_for_location(location_id) do
+    from(s in LockerSession,
+      join: l in assoc(s, :locker),
+      where: l.location_id == ^location_id and is_nil(s.released_at),
+      order_by: [asc: s.assigned_at],
+      preload: [locker: l]
+    )
+    |> Repo.all()
+  end
+
+  @doc "List active sessions for a location with pagination."
+  def list_active_sessions_for_location(location_id, page, per_page) do
+    query =
+      from(s in LockerSession,
+        join: l in assoc(s, :locker),
+        where: l.location_id == ^location_id and is_nil(s.released_at),
+        order_by: [asc: s.assigned_at],
+        preload: [locker: l],
+        limit: ^(per_page + 1),
+        offset: ^((page - 1) * per_page)
+      )
+
+    sessions = Repo.all(query)
+    has_next_page = length(sessions) > per_page
+    {Enum.take(sessions, per_page), has_next_page}
+  end
+
+  @doc "List session history for a location with optional date filter and pagination."
+  def list_sessions_for_location(location_id, date, page, per_page) do
+    base_query =
+      from(s in LockerSession,
+        join: l in assoc(s, :locker),
+        where: l.location_id == ^location_id,
+        order_by: [desc: s.assigned_at],
+        preload: [locker: l]
+      )
+
+    query =
+      case date do
+        nil ->
+          base_query
+
+        d ->
+          start_dt = DateTime.new!(d, ~T[00:00:00], "Etc/UTC")
+          end_dt = DateTime.new!(Date.add(d, 1), ~T[00:00:00], "Etc/UTC")
+          where(base_query, [s, _l], s.assigned_at >= ^start_dt and s.assigned_at < ^end_dt)
+      end
+
+    query =
+      query
+      |> limit(^(per_page + 1))
+      |> offset(^((page - 1) * per_page))
+
+    sessions = Repo.all(query)
+    has_next_page = length(sessions) > per_page
+    {Enum.take(sessions, per_page), has_next_page}
+  end
+
   @doc "Get the active session for a visitor (if any) in a node."
   def get_active_session_for_visitor(node_id, visitor_identifier) do
     LockerSession
@@ -255,13 +415,19 @@ defmodule VoileLockerLuggage.Lockers do
   def assign_locker(node_id, visitor_identifier, visitor_name \\ nil, opts \\ []) do
     locker_id = Keyword.get(opts, :locker_id)
     visitor_log_id = Keyword.get(opts, :visitor_log_id)
+    location_id = Keyword.get(opts, :location_id)
 
     Repo.transaction(fn ->
       locker =
-        if locker_id do
-          Repo.get!(Locker, locker_id)
-        else
-          list_available_lockers(node_id) |> List.first()
+        cond do
+          locker_id ->
+            Repo.get!(Locker, locker_id)
+
+          location_id ->
+            list_available_lockers_for_location(location_id) |> List.first()
+
+          true ->
+            list_available_lockers(node_id) |> List.first()
         end
 
       cond do

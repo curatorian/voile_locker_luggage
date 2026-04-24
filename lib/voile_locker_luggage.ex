@@ -163,13 +163,21 @@ defmodule VoileLockerLuggage do
         %{panels: panels, node_id: node_id, visitor_log: visitor_log, visitor_name: visitor_name, visitor_identifier: visitor_identifier} =
           payload
       ) do
+    location_id = Map.get(payload, :location_id)
+
     if VoileLockerLuggage.Lockers.node_enabled?(node_id) do
-      count = VoileLockerLuggage.Lockers.list_available_lockers(node_id) |> length()
+      count =
+        if location_id do
+          VoileLockerLuggage.Lockers.list_available_lockers_for_location(location_id) |> length()
+        else
+          VoileLockerLuggage.Lockers.list_available_lockers(node_id) |> length()
+        end
 
       if count > 0 and not panel_already_present?(panels, VoileLockerLuggage.CheckInPanel) do
         panel_assigns = %{
           id: "locker-offer-#{visitor_log.id}",
           node_id: node_id,
+          location_id: location_id,
           visitor_log_id: visitor_log.id,
           visitor_identifier: visitor_identifier,
           visitor_name: visitor_name,

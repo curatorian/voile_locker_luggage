@@ -6,7 +6,7 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
 
   use Phoenix.LiveView
 
-  @compile {:no_warn_undefined, [Voile.Schema.System, VoileWeb.Auth.Authorization]}
+  @compile {:no_warn_undefined, [Voile.Schema.System, Voile.Schema.Master, VoileWeb.Auth.Authorization]}
 
   alias VoileLockerLuggage.Lockers
   alias Voile.Schema.System
@@ -46,6 +46,8 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
      |> assign(:page_title, "Locker Sessions")
      |> assign(:nodes, enabled_nodes)
      |> assign(:selected_node_id, node_id)
+     |> assign(:locations, [])
+     |> assign(:selected_location_id, nil)
      |> assign(:filter, :active)
      |> assign(:selected_date, today)
      |> assign(:page, 1)
@@ -72,45 +74,46 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
     |> assign(:has_next_page, false)
     |> assign(:page, socket.assigns[:page] || 1)
     |> assign(:per_page, socket.assigns[:per_page] || @page_size)
+    |> assign(:locations, [])
   end
 
-  defp load_sessions(socket, node_id, :active, _date) do
+  defp load_sessions(socket, node_id, filter, date) do
+    locations = load_locations(node_id)
+    location_id = socket.assigns[:selected_location_id]
     page = socket.assigns[:page] || 1
     per_page = socket.assigns[:per_page] || @page_size
 
-    {sessions, has_next_page} = Lockers.list_active_sessions(node_id, page, per_page)
+    {sessions, has_next_page} =
+      case {filter, location_id} do
+        {:active, nil} ->
+          Lockers.list_active_sessions(node_id, page, per_page)
+
+        {:active, loc_id} ->
+          Lockers.list_active_sessions_for_location(loc_id, page, per_page)
+
+        {:history, nil} ->
+          Lockers.list_sessions(node_id, date, page, per_page)
+
+        {:history, loc_id} ->
+          Lockers.list_sessions_for_location(loc_id, date, page, per_page)
+      end
 
     socket
     |> assign(:sessions, sessions)
     |> assign(:has_next_page, has_next_page)
     |> assign(:page, page)
     |> assign(:per_page, per_page)
+    |> assign(:locations, locations)
   end
 
-  defp load_sessions(socket, node_id, :history, nil) do
-    page = socket.assigns[:page] || 1
-    per_page = socket.assigns[:per_page] || @page_size
+  defp load_locations(nil), do: []
 
-    {sessions, has_next_page} = Lockers.list_sessions(node_id, nil, page, per_page)
-
-    socket
-    |> assign(:sessions, sessions)
-    |> assign(:has_next_page, has_next_page)
-    |> assign(:page, page)
-    |> assign(:per_page, per_page)
-  end
-
-  defp load_sessions(socket, node_id, :history, date) do
-    page = socket.assigns[:page] || 1
-    per_page = socket.assigns[:per_page] || @page_size
-
-    {sessions, has_next_page} = Lockers.list_sessions(node_id, date, page, per_page)
-
-    socket
-    |> assign(:sessions, sessions)
-    |> assign(:has_next_page, has_next_page)
-    |> assign(:page, page)
-    |> assign(:per_page, per_page)
+  defp load_locations(node_id) do
+    try do
+      Voile.Schema.Master.list_locations(node_id: node_id, is_active: true)
+    rescue
+      _ -> []
+    end
   end
 
   @impl true
@@ -121,8 +124,37 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
     {:noreply,
      socket
      |> assign(:selected_node_id, node_id)
+     |> assign(:selected_location_id, nil)
      |> assign(:page, 1)
      |> load_sessions(node_id, socket.assigns.filter, socket.assigns.selected_date)}
+  end
+
+  @impl true
+  def handle_event("select_location", %{"location_id" => "all"}, socket) do
+    {:noreply,
+     socket
+     |> assign(:selected_location_id, nil)
+     |> assign(:page, 1)
+     |> load_sessions(
+       socket.assigns.selected_node_id,
+       socket.assigns.filter,
+       socket.assigns.selected_date
+     )}
+  end
+
+  @impl true
+  def handle_event("select_location", %{"location_id" => location_id_str}, socket) do
+    location_id = String.to_integer(location_id_str)
+
+    {:noreply,
+     socket
+     |> assign(:selected_location_id, location_id)
+     |> assign(:page, 1)
+     |> load_sessions(
+       socket.assigns.selected_node_id,
+       socket.assigns.filter,
+       socket.assigns.selected_date
+     )}
   end
 
   @impl true
@@ -230,7 +262,7 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
 
       <%!-- Node tabs --%>
       <%= if @nodes != [] do %>
-        <div class="flex flex-wrap gap-2 mb-4">
+        <div class="flex flex-wrap gap-2 mb-3">
           <%= for node <- @nodes do %>
             <button
               phx-click="select_node"
@@ -244,6 +276,44 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
               ]}
             >
               {node.name}
+            </button>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%!-- Location sub-tabs --%>
+      <%= if @selected_node_id && @locations != [] do %>
+        <div class="flex flex-wrap gap-1.5 mb-4 pl-3 border-l-4 border-indigo-200 dark:border-indigo-700">
+          <button
+            phx-click="select_location"
+            phx-value-location_id="all"
+            class={[
+              "px-3 py-1 text-xs font-medium rounded-md border transition-colors",
+              if(is_nil(@selected_location_id),
+                do:
+                  "bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-600",
+                else:
+                  "bg-white text-gray-500 border-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-800"
+              )
+            ]}
+          >
+            All Locations
+          </button>
+          <%= for location <- @locations do %>
+            <button
+              phx-click="select_location"
+              phx-value-location_id={location.id}
+              class={[
+                "px-3 py-1 text-xs font-medium rounded-md border transition-colors",
+                if(@selected_location_id == location.id,
+                  do:
+                    "bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-600",
+                  else:
+                    "bg-white text-gray-500 border-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-800"
+                )
+              ]}
+            >
+              {location.location_name}
             </button>
           <% end %>
         </div>
