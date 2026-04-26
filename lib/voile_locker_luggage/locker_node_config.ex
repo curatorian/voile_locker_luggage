@@ -24,8 +24,8 @@ defmodule VoileLockerLuggage.LockerNodeConfig do
     config
     |> cast(attrs, [:node_id, :enabled, :total_lockers, :max_duration_hours, :notes])
     |> validate_required([:node_id, :enabled, :total_lockers, :max_duration_hours])
-    |> validate_number(:total_lockers, greater_than: 0)
-    |> validate_number(:max_duration_hours, greater_than: 0)
+    |> validate_number(:total_lockers, greater_than_or_equal_to: 0)
+    |> validate_number(:max_duration_hours, greater_than_or_equal_to: 0)
     |> unique_constraint(:node_id)
   end
 end

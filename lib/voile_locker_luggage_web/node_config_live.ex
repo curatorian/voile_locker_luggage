@@ -208,7 +208,7 @@ defmodule VoileLockerLuggage.Web.NodeConfigLive do
 
       case Lockers.upsert_node_config(node_id, attrs) do
         {:ok, _config} ->
-          if attrs.enabled do
+          if attrs.enabled && attrs.total_lockers > 0 do
             Lockers.sync_lockers_for_node(node_id, attrs.total_lockers)
           end
 
@@ -271,9 +271,9 @@ defmodule VoileLockerLuggage.Web.NodeConfigLive do
           <%= for {node, config} <- @node_configs do %>
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-100 dark:border-gray-700 p-5">
             <%= if @editing_node_id == node.id do %>
-              <h2 class="font-semibold text-gray-900 dark:text-white mb-4">
+              <h4 class="font-semibold text-gray-900 dark:text-white mb-4">
                 Configuring: {node.name}
-              </h2>
+              </h4>
               <.form
                 for={@form}
                 id={"node-config-form-#{node.id}"}
@@ -312,19 +312,19 @@ defmodule VoileLockerLuggage.Web.NodeConfigLive do
                       type="number"
                       name="node_config[total_lockers]"
                       value={Ecto.Changeset.get_field(@form.source, :total_lockers)}
-                      min="1"
+                      min="0"
                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 dark:bg-gray-900 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
                   <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Max Duration (hours)
+                      Max Duration (hours) — 0 = unlimited
                     </label>
                     <input
                       type="number"
                       name="node_config[max_duration_hours]"
                       value={Ecto.Changeset.get_field(@form.source, :max_duration_hours)}
-                      min="1"
+                      min="0"
                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 dark:bg-gray-900 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
@@ -367,7 +367,7 @@ defmodule VoileLockerLuggage.Web.NodeConfigLive do
                   <%= if config do %>
                     <div class="mt-1 flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
                       <span>Lockers: {config.total_lockers}</span>
-                      <span>Max: {config.max_duration_hours}h</span>
+                      <span>Max: {if config.max_duration_hours == 0, do: "Unlimited", else: "#{config.max_duration_hours}h"}</span>
                       <%= if config.notes && config.notes != "" do %>
                         <span class="italic">{config.notes}</span>
                       <% end %>

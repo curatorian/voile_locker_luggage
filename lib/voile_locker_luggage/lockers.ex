@@ -148,28 +148,51 @@ defmodule VoileLockerLuggage.Lockers do
   Only creates lockers that don't already exist.
   """
   def sync_lockers_for_node(node_id, total_count) do
-    existing_numbers =
+    existing =
       Locker
-      |> where([l], l.node_id == ^node_id)
-      |> select([l], l.locker_number)
+      |> where([l], l.node_id == ^node_id and is_nil(l.location_id))
+      |> Repo.all()
+
+    existing_numbers = MapSet.new(existing, & &1.locker_number)
+
+    desired_numbers =
+      if total_count > 0 do
+        1..total_count
+        |> Enum.map(&String.pad_leading(Integer.to_string(&1), 3, "0"))
+        |> MapSet.new()
+      else
+        MapSet.new()
+      end
+
+    to_create = MapSet.difference(desired_numbers, existing_numbers)
+    to_remove_numbers = MapSet.difference(existing_numbers, desired_numbers)
+
+    # Only delete available lockers with no active sessions
+    to_delete =
+      existing
+      |> Enum.filter(fn l ->
+        MapSet.member?(to_remove_numbers, l.locker_number) and l.status == "available"
+      end)
+
+    active_locker_ids =
+      LockerSession
+      |> where([s], s.node_id == ^node_id and is_nil(s.released_at))
+      |> select([s], s.locker_id)
       |> Repo.all()
       |> MapSet.new()
 
-    desired_numbers =
-      1..total_count
-      |> Enum.map(&String.pad_leading(Integer.to_string(&1), 3, "0"))
-      |> MapSet.new()
-
-    to_create = MapSet.difference(desired_numbers, existing_numbers)
+    safe_to_delete = Enum.reject(to_delete, &MapSet.member?(active_locker_ids, &1.id))
 
     Repo.transaction(fn ->
+      Enum.each(safe_to_delete, &Repo.delete!/1)
+
       Enum.each(to_create, fn number ->
         %Locker{}
         |> Locker.changeset(%{node_id: node_id, locker_number: number, status: "available"})
         |> Repo.insert!()
       end)
 
-      MapSet.size(to_create)
+      {MapSet.size(to_create), length(safe_to_delete)}
     end)
   end
 
@@ -215,21 +238,44 @@ defmodule VoileLockerLuggage.Lockers do
   Only creates lockers that don't already exist for that location.
   """
   def sync_lockers_for_location(location_id, node_id, total_count) do
-    existing_numbers =
+    existing =
       Locker
       |> where([l], l.location_id == ^location_id)
-      |> select([l], l.locker_number)
+      |> Repo.all()
+
+    existing_numbers = MapSet.new(existing, & &1.locker_number)
+
+    desired_numbers =
+      if total_count > 0 do
+        1..total_count
+        |> Enum.map(&String.pad_leading(Integer.to_string(&1), 3, "0"))
+        |> MapSet.new()
+      else
+        MapSet.new()
+      end
+
+    to_create = MapSet.difference(desired_numbers, existing_numbers)
+    to_remove_numbers = MapSet.difference(existing_numbers, desired_numbers)
+
+    # Only delete available lockers with no active sessions
+    to_delete =
+      existing
+      |> Enum.filter(fn l ->
+        MapSet.member?(to_remove_numbers, l.locker_number) and l.status == "available"
+      end)
+
+    active_locker_ids =
+      LockerSession
+      |> where([s], s.node_id == ^node_id and is_nil(s.released_at))
+      |> select([s], s.locker_id)
       |> Repo.all()
       |> MapSet.new()
 
-    desired_numbers =
-      1..total_count
-      |> Enum.map(&String.pad_leading(Integer.to_string(&1), 3, "0"))
-      |> MapSet.new()
-
-    to_create = MapSet.difference(desired_numbers, existing_numbers)
+    safe_to_delete = Enum.reject(to_delete, &MapSet.member?(active_locker_ids, &1.id))
 
     Repo.transaction(fn ->
+      Enum.each(safe_to_delete, &Repo.delete!/1)
+
       Enum.each(to_create, fn number ->
         %Locker{}
         |> Locker.changeset(%{
@@ -241,7 +287,7 @@ defmodule VoileLockerLuggage.Lockers do
         |> Repo.insert!()
       end)
 
-      MapSet.size(to_create)
+      {MapSet.size(to_create), length(safe_to_delete)}
     end)
   end
 

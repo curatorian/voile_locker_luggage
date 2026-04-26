@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.2.1 (2026-04-25)
+
+- Add Delete button on locker cards, visible to super admins only
+- Sync functions now delete excess available lockers (no active sessions) when locker count is reduced
+- Allow `total_lockers = 0` at node level to skip node-level sync (distribute all lockers per-location)
+- Fix `max_duration_hours = 0` validation and UI to represent unlimited duration
+- Fix location name badge on locker cards using all locations (not filtered by is_active)
+- Fix compiler warnings: group `load_locations` clauses by arity
+
 ## v0.2.0 (2026-04-24)
 
 - Add per-location locker support scoped under `mst_locations`

@@ -43,6 +43,7 @@ defmodule VoileLockerLuggage.Web.LockersLive do
      |> assign(:nodes, enabled_nodes)
      |> assign(:selected_node_id, node_id)
      |> assign(:locations, [])
+     |> assign(:location_map, %{})
      |> assign(:selected_location_id, nil)
      |> assign(:show_form, false)
      |> assign(:editing_locker, nil)
@@ -75,11 +76,15 @@ defmodule VoileLockerLuggage.Web.LockersLive do
     |> assign(:sessions_by_locker, %{})
     |> assign(:counts, %{})
     |> assign(:locations, [])
+    |> assign(:location_map, %{})
   end
 
   defp load_lockers(socket, node_id) do
     location_id = socket.assigns[:selected_location_id]
-    locations = load_locations(node_id)
+    # Active locations only — used for sub-tab filter buttons
+    locations = load_locations(node_id, is_active: true)
+    # All locations (including inactive) — used to label locker cards
+    all_locations = load_locations(node_id)
 
     {lockers, active_sessions, counts} =
       if location_id do
@@ -97,19 +102,23 @@ defmodule VoileLockerLuggage.Web.LockersLive do
       end
 
     sessions_by_locker = Map.new(active_sessions, &{&1.locker_id, &1})
+    location_map = Map.new(all_locations, &{&1.id, &1.location_name})
 
     socket
     |> assign(:lockers, lockers)
     |> assign(:sessions_by_locker, sessions_by_locker)
     |> assign(:counts, counts)
     |> assign(:locations, locations)
+    |> assign(:location_map, location_map)
   end
 
   defp load_locations(nil), do: []
+  defp load_locations(node_id), do: load_locations(node_id, [])
 
-  defp load_locations(node_id) do
+  defp load_locations(nil, _opts), do: []
+  defp load_locations(node_id, opts) do
     try do
-      Voile.Schema.Master.list_locations(node_id: node_id, is_active: true)
+      Voile.Schema.Master.list_locations([{:node_id, node_id} | opts])
     rescue
       _ -> []
     end
@@ -579,11 +588,17 @@ defmodule VoileLockerLuggage.Web.LockersLive do
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           <%= for locker <- @lockers do %>
             <% session = Map.get(@sessions_by_locker, locker.id) %>
+            <% location_name = if locker.location_id, do: Map.get(@location_map, locker.location_id), else: nil %>
             <div class={[
               "relative rounded-xl border-2 p-3 text-center transition-colors",
               status_card_class(locker.status)
             ]}>
               <div class="text-lg font-bold">{locker.locker_number}</div>
+              <%= if location_name do %>
+                <div class="text-xs font-medium text-indigo-600 dark:text-indigo-400 truncate" title={location_name}>
+                  {location_name}
+                </div>
+              <% end %>
               <div class="text-xs mt-0.5 capitalize">{locker.status}</div>
 
               <%= if session do %>
@@ -591,11 +606,10 @@ defmodule VoileLockerLuggage.Web.LockersLive do
                   <div class="text-sm font-medium mt-1 truncate" title={session.visitor_name}>
                     {session.visitor_name}
                   </div>
-                <% else %>
-                  <div class="text-xs text-gray-600 mt-1 truncate" title={session.visitor_identifier}>
-                    {session.visitor_identifier}
-                  </div>
                 <% end %>
+                <div class="text-xs text-gray-600 dark:text-gray-400 mt-0.5 truncate font-mono" title={session.visitor_identifier}>
+                  {session.visitor_identifier}
+                </div>
               <% end %>
 
               <div class="mt-2 flex flex-col gap-1">
@@ -647,6 +661,16 @@ defmodule VoileLockerLuggage.Web.LockersLive do
                     class="text-xs px-2 py-0.5 bg-white border border-green-300 text-green-700 rounded hover:bg-green-50 dark:bg-gray-700 dark:border-green-500 dark:text-green-200 dark:hover:bg-green-600"
                   >
                     Re-enable
+                  </button>
+                <% end %>
+                <%= if @is_super_admin do %>
+                  <button
+                    phx-click="delete_locker"
+                    phx-value-id={locker.id}
+                    data-confirm={"Delete locker #{locker.locker_number}? This cannot be undone."}
+                    class="text-xs px-2 py-0.5 bg-white border border-red-200 text-red-500 rounded hover:bg-red-50 dark:bg-gray-700 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/30"
+                  >
+                    Delete
                   </button>
                 <% end %>
               </div>
