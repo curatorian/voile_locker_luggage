@@ -6,11 +6,12 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
 
   use Phoenix.LiveView
 
-  @compile {:no_warn_undefined, [Voile.Schema.System, Voile.Schema.Master, VoileWeb.Auth.Authorization]}
+  @compile {:no_warn_undefined, [Voile.Schema.System, Voile.Schema.Master, VoileWeb.Auth.Authorization, VoileWeb.Utils.FormatIndonesiaTime]}
 
   alias VoileLockerLuggage.Lockers
   alias Voile.Schema.System
   alias VoileLockerLuggageWeb
+  alias VoileWeb.Utils.FormatIndonesiaTime
 
   @page_size 20
 
@@ -461,7 +462,7 @@ defmodule VoileLockerLuggage.Web.SessionsLive do
   defp format_dt(nil), do: "—"
 
   defp format_dt(%DateTime{} = dt) do
-    Calendar.strftime(dt, "%d %b %Y %H:%M")
+    FormatIndonesiaTime.format_utc_to_jakarta(dt)
   end
 
   defp staff_email(socket) do

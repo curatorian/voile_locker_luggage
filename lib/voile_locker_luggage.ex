@@ -28,7 +28,7 @@ defmodule VoileLockerLuggage do
     %{
       id: "locker_luggage",
       name: "Locker & Luggage",
-      version: "1.0.0",
+      version: "0.2.1",
       author: "Voile",
       description:
         "Visitor locker management system with per-node configuration and check-in integration.",

@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.2 (2026-04-28)
+
+- Use specific location to create locker (with alongside node-level creation) to ensure lockers are properly associated with location for accurate availability tracking and assignment during check-in
+- Fix locker sync logic to properly handle location associations and ensure accurate locker counts per location
+- Add missing `location_id` to locker creation in tests and seed data
+
 ## v0.2.1 (2026-04-25)
 
 - Add Delete button on locker cards, visible to super admins only
